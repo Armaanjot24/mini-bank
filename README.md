@@ -322,11 +322,19 @@ seconds since previous, 1h and 24h velocity, prior failures, is_transfer.
 
 Confusion matrix (test set, 1,674 rows, 57 fraudulent): `tn=1603 fp=14 fn=6 tp=51`.
 
+![Random Forest confusion matrix on the held-out test set](results/confusion_matrix.png)
+
 **Why accuracy is not sufficient — the point of the last row.** A model that predicts
 "normal" for every transaction scores **96.6% accuracy** and catches **zero fraud**. The
 Random Forest's 98.8% looks only marginally better on that scale while being a completely
 different product. Precision, recall and PR-AUC are the metrics that carry information at
 a 3% positive rate.
+
+![ROC and precision-recall curves for the Random Forest](results/roc_pr_curves.png)
+
+The dashed line in each panel is the no-skill baseline: 0.5 for ROC, but **0.034** — the
+positive rate — for precision-recall. The PR curve is the harder and more informative of
+the two here, and it is the one that falls off past ~0.9 recall.
 
 **Why Random Forest beats Logistic Regression so decisively.** The injected fraud patterns
 are *interactions*: a large amount **and** high velocity **and** an odd hour. A linear model
@@ -334,7 +342,7 @@ cannot represent an interaction unless you hand-build the cross terms. Trees fin
 free. This is a property of the problem, not evidence that "ensembles are better".
 
 **Threshold selection is a business decision, not an ML one.** From the sweep in
-`results/threshold_sweep.csv`:
+[`results/threshold_sweep.csv`](results/threshold_sweep.csv):
 
 | threshold | precision | recall | false alarms | missed fraud |
 |---|---|---|---|---|
@@ -345,7 +353,8 @@ free. This is a property of the problem, not evidence that "ensembles are better
 Whether 53 annoyed customers is worth catching one more fraud is a question for the bank,
 not the model.
 
-**Feature importance** (`results/feature_importance.png`):
+**Feature importance** (permutation importance; full table in
+[`results/feature_importance.csv`](results/feature_importance.csv)):
 
 | feature | importance |
 |---|---|
@@ -354,7 +363,10 @@ not the model.
 | `amount_zscore` | 0.117 |
 | `amount_ratio` | 0.100 |
 | `account_age_days` | 0.088 |
+| `txn_count_24h` | 0.059 |
 | `amount` | 0.057 |
+
+![Permutation feature importance for the Random Forest](results/feature_importance.png)
 
 Behavioural features beat raw amount. What matters is not how large a transaction is, but
 how unusual it is **for that account** — which is exactly what the window functions compute.
