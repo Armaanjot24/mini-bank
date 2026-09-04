@@ -485,6 +485,12 @@ python -m ml.predict           # backfill risk scores onto historical transactio
 python -m app.cli ml check --account-id 35 --amount 50000
 ```
 
+Both directories are created on import by `app/config.py`, so a fresh clone needs no
+`mkdir`. `results/` is committed so the plots in section 6 render on GitHub; re-running
+`ml.evaluate` overwrites them. The generator is seeded (`seed=42`, `random_state=42`),
+but it anchors timestamps to `datetime.now() - days`, so regenerating on a different
+date re-aligns the hour-of-day and weekend features and moves the metrics slightly.
+
 ### Tests
 
 ```bash
@@ -540,8 +546,8 @@ jupyter notebook notebooks/ml_experiments.ipynb
 │   └── predict.py           live scoring + explanation + backfill
 ├── tests/                   34 tests
 ├── notebooks/               ml_experiments.ipynb
-├── data/                    trained model artifact
-└── results/                 plots and CSVs
+├── data/                    trained model artifact (gitignored, rebuilt by ml/train.py)
+└── results/                 committed plots and CSVs (rewritten by ml/evaluate.py)
 ```
 
 Deliberately flat. There is no `models/`, `services/`, `repositories/` three-layer split,
