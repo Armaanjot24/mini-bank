@@ -1,10 +1,10 @@
 import uuid
 from decimal import Decimal, InvalidOperation
 
-from app import config
 from app import database as db
 from app.errors import (
     AccountNotActive,
+    BankingError,
     InsufficientFunds,
     LimitExceeded,
     NotFoundError,
@@ -99,9 +99,17 @@ def _insert_transaction(cur, account_id, transaction_type, amount, before, after
     return cur.lastrowid
 
 
-def deposit(account_id, amount, reference=None, actor_user_id=None) -> dict:
+MOVEMENTS = {
+    "DEPOSIT":    ("DEP", +1),
+    "WITHDRAWAL": ("WDR", -1),
+}
+
+
+def _movement(kind, account_id, amount, reference, actor_user_id) -> dict:
+    """Deposit and withdrawal are the same transaction, differing only in sign."""
+    prefix, sign = MOVEMENTS[kind]
     amount = _require_positive(amount)
-    reference = reference or new_reference("DEP")
+    reference = reference or new_reference(prefix)
 
     try:
         with db.transaction() as cur:
@@ -110,60 +118,36 @@ def deposit(account_id, amount, reference=None, actor_user_id=None) -> dict:
             _check_max_txn(account, amount)
 
             before = account["balance"]
-            after = before + amount
-
-            cur.execute(
-                "UPDATE accounts SET balance = %s WHERE account_id = %s",
-                (after, account_id),
-            )
-            txn_id = _insert_transaction(cur, account_id, "DEPOSIT", amount,
-                                         before, after, reference)
-            db.audit(cur, "DEPOSIT", user_id=actor_user_id, account_id=account_id,
-                     entity_type="transaction", entity_id=txn_id,
-                     details={"amount": str(amount), "balance_after": str(after)})
-    except (ValidationError, AccountNotActive, LimitExceeded, NotFoundError) as exc:
-        db.record_failure(account_id, "DEPOSIT", amount, reference, str(exc),
-                          user_id=actor_user_id)
-        raise
-
-    return {"transaction_id": txn_id, "reference": reference,
-            "balance_before": before, "balance_after": after}
-
-
-def withdraw(account_id, amount, reference=None, actor_user_id=None) -> dict:
-    amount = _require_positive(amount)
-    reference = reference or new_reference("WDR")
-
-    try:
-        with db.transaction() as cur:
-            account = lock_account(cur, account_id)
-            _require_active(account)
-            _check_max_txn(account, amount)
-
-            before = account["balance"]
-            if before < amount:
+            if sign < 0 and before < amount:
                 raise InsufficientFunds(
                     f"Balance {before} is less than requested {amount}"
                 )
-            after = before - amount
+            after = before + sign * amount
 
             cur.execute(
                 "UPDATE accounts SET balance = %s WHERE account_id = %s",
                 (after, account_id),
             )
-            txn_id = _insert_transaction(cur, account_id, "WITHDRAWAL", amount,
+            txn_id = _insert_transaction(cur, account_id, kind, amount,
                                          before, after, reference)
-            db.audit(cur, "WITHDRAWAL", user_id=actor_user_id, account_id=account_id,
+            db.audit(cur, kind, user_id=actor_user_id, account_id=account_id,
                      entity_type="transaction", entity_id=txn_id,
                      details={"amount": str(amount), "balance_after": str(after)})
-    except (ValidationError, AccountNotActive, LimitExceeded, InsufficientFunds,
-            NotFoundError) as exc:
-        db.record_failure(account_id, "WITHDRAWAL", amount, reference, str(exc),
+    except BankingError as exc:
+        db.record_failure(account_id, kind, amount, reference, str(exc),
                           user_id=actor_user_id)
         raise
 
     return {"transaction_id": txn_id, "reference": reference,
             "balance_before": before, "balance_after": after}
+
+
+def deposit(account_id, amount, reference=None, actor_user_id=None) -> dict:
+    return _movement("DEPOSIT", account_id, amount, reference, actor_user_id)
+
+
+def withdraw(account_id, amount, reference=None, actor_user_id=None) -> dict:
+    return _movement("WITHDRAWAL", account_id, amount, reference, actor_user_id)
 
 
 def transfer(from_account_id, to_account_id, amount, reference=None,
@@ -245,8 +229,7 @@ def transfer(from_account_id, to_account_id, amount, reference=None,
                               "amount": str(amount),
                               "status": transfer_status,
                               "risk_score": str(risk["risk_score"])})
-    except (ValidationError, AccountNotActive, LimitExceeded, InsufficientFunds,
-            NotFoundError, RiskBlocked) as exc:
+    except BankingError as exc:
         db.record_failure(from_account_id, "TRANSFER_OUT", amount, reference,
                           str(exc), user_id=actor_user_id)
         raise

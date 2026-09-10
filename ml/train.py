@@ -115,8 +115,8 @@ def train(test_fraction=0.25, validation_fraction=0.20, save=True, verbose=True)
     threshold, chosen_metrics = deployed(winner)
     model = fitted[winner][0]
     if verbose:
-        print(f"selection: highest F1 at the threshold that will actually be deployed")
-        print(f"           (PR-AUC alone is unstable with so few positives)")
+        print("selection: highest F1 at the threshold that will actually be deployed")
+        print("           (PR-AUC alone is unstable with so few positives)")
 
     artifact = {
         "model": model,

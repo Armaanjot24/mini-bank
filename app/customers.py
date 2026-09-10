@@ -65,16 +65,15 @@ def create_account(customer_id, account_type="SAVINGS", initial_deposit=Decimal(
     if customer["status"] != "ACTIVE":
         raise ValidationError("Cannot open an account for a non-active customer")
 
-    columns = ["customer_id", "account_number", "account_type", "balance"]
+    optional = {"daily_transfer_limit": daily_transfer_limit,
+                "max_txn_amount": max_txn_amount}
+    extra = {k: Decimal(str(v)) for k, v in optional.items() if v is not None}
+
     for _ in range(10):
         number = _new_account_number()
-        values = [customer_id, number, account_type, initial_deposit]
-        if daily_transfer_limit is not None:
-            columns.append("daily_transfer_limit")
-            values.append(Decimal(str(daily_transfer_limit)))
-        if max_txn_amount is not None:
-            columns.append("max_txn_amount")
-            values.append(Decimal(str(max_txn_amount)))
+        columns = ["customer_id", "account_number", "account_type", "balance",
+                   *extra]
+        values = [customer_id, number, account_type, initial_deposit, *extra.values()]
         placeholders = ", ".join(["%s"] * len(columns))
         try:
             with db.transaction() as cur:
@@ -110,15 +109,6 @@ def get_account(account_id) -> dict:
     row = db.query_one("SELECT * FROM accounts WHERE account_id = %s", (account_id,))
     if row is None:
         raise NotFoundError(f"No account with id {account_id}")
-    return row
-
-
-def get_account_by_number(account_number) -> dict:
-    row = db.query_one(
-        "SELECT * FROM accounts WHERE account_number = %s", (account_number,)
-    )
-    if row is None:
-        raise NotFoundError(f"No account with number {account_number}")
     return row
 
 
@@ -164,18 +154,3 @@ def add_beneficiary(customer_id, account_id, nickname) -> int:
                  entity_type="beneficiary", entity_id=beneficiary_id,
                  details={"customer_id": customer_id, "nickname": nickname})
         return beneficiary_id
-
-
-def list_beneficiaries(customer_id) -> list[dict]:
-    return db.query_all(
-        """
-        SELECT b.beneficiary_id, b.nickname, a.account_id, a.account_number,
-               c.full_name AS beneficiary_name
-        FROM beneficiaries b
-        JOIN accounts  a ON a.account_id  = b.account_id
-        JOIN customers c ON c.customer_id = a.customer_id
-        WHERE b.customer_id = %s
-        ORDER BY b.nickname
-        """,
-        (customer_id,),
-    )

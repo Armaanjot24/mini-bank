@@ -39,21 +39,32 @@ BENCHMARK_QUERIES = {
 }
 
 
+def _from_view(view, order_by, limit=None):
+    sql = f"SELECT * FROM {view} ORDER BY {order_by}"
+    if limit is None:
+        return db.query_all(sql)
+    return db.query_all(sql + " LIMIT %s", (limit,))
+
+
 def customer_balance_summary(limit=20):
-    return db.query_all(
-        "SELECT * FROM v_customer_balance_summary "
-        "ORDER BY total_balance DESC LIMIT %s", (limit,)
-    )
+    return _from_view("v_customer_balance_summary", "total_balance DESC", limit)
 
 
 def monthly_summary():
-    return db.query_all(
-        "SELECT * FROM v_monthly_transaction_summary ORDER BY month DESC"
-    )
+    return _from_view("v_monthly_transaction_summary", "month DESC")
 
 
 def transaction_stats():
     return db.query_all("SELECT * FROM v_transaction_stats")
+
+
+def account_ranking(limit=15):
+    return _from_view("v_account_ranking", "volume_rank", limit)
+
+
+def suspicious_report(limit=25):
+    return _from_view("v_suspicious_transactions",
+                      "risk_score DESC, created_at DESC", limit)
 
 
 def top_customers_by_balance(limit=10):
@@ -69,52 +80,14 @@ def top_customers_by_balance(limit=10):
     )
 
 
-def account_ranking(limit=15):
-    return db.query_all(
-        "SELECT * FROM v_account_ranking ORDER BY volume_rank LIMIT %s", (limit,)
-    )
-
-
-def suspicious_report(limit=25):
-    return db.query_all(
-        "SELECT * FROM v_suspicious_transactions ORDER BY risk_score DESC, "
-        "created_at DESC LIMIT %s", (limit,)
-    )
-
-
-def running_balance(account_id, limit=25):
+def _indexes_named(prefix):
     return db.query_all(
         """
-        SELECT transaction_id, created_at, transaction_type, amount,
-               SUM(CASE WHEN transaction_type IN ('DEPOSIT','TRANSFER_IN') THEN amount
-                        ELSE -amount END)
-                   OVER (ORDER BY created_at, transaction_id
-                         ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS running_balance,
-               LAG(amount) OVER (ORDER BY created_at, transaction_id) AS previous_amount
-        FROM transactions
-        WHERE account_id = %s AND status IN ('SUCCESS','FLAGGED')
-        ORDER BY created_at, transaction_id
-        LIMIT %s
+        SELECT DISTINCT TABLE_NAME, INDEX_NAME FROM information_schema.STATISTICS
+        WHERE TABLE_SCHEMA = %s AND INDEX_NAME LIKE %s
         """,
-        (account_id, limit),
+        (config.MYSQL_DB, prefix + "\\_%"),
     )
-
-
-def _existing_indexes():
-    rows = db.query_all(
-        """
-        SELECT DISTINCT INDEX_NAME FROM information_schema.STATISTICS
-        WHERE TABLE_SCHEMA = %s AND INDEX_NAME LIKE 'idx_%%'
-        """,
-        (config.MYSQL_DB,),
-    )
-    return {r["INDEX_NAME"] for r in rows}
-
-
-def _index_statements():
-    text = INDEX_FILE.read_text()
-    return [s.strip() for s in text.split(";")
-            if s.strip().upper().startswith("CREATE INDEX")]
 
 
 def _first_column(table, index_name):
@@ -128,19 +101,21 @@ def _first_column(table, index_name):
     )["COLUMN_NAME"]
 
 
+def _index_statements():
+    text = INDEX_FILE.read_text()
+    return [s.strip() for s in text.split(";")
+            if s.strip().upper().startswith("CREATE INDEX")]
+
+
 def drop_indexes():
+    """Drop the performance indexes. An index a foreign key depends on cannot be
+    dropped outright, so a single-column stand-in is created first: the "without
+    index" baseline stays realistic instead of impossible."""
     dropped, stand_ins = [], []
-    for row in db.query_all(
-        """
-        SELECT DISTINCT TABLE_NAME, INDEX_NAME FROM information_schema.STATISTICS
-        WHERE TABLE_SCHEMA = %s AND INDEX_NAME LIKE 'idx\\_%%'
-        """,
-        (config.MYSQL_DB,),
-    ):
+    for row in _indexes_named("idx"):
         table, index_name = row["TABLE_NAME"], row["INDEX_NAME"]
         try:
             db.execute(f"DROP INDEX {index_name} ON {table}")
-            dropped.append(index_name)
         except Exception as exc:
             if "needed in a foreign key constraint" not in str(exc):
                 raise
@@ -148,20 +123,14 @@ def drop_indexes():
             stand_in = f"tmpfk_{table}_{column}"
             db.execute(f"CREATE INDEX {stand_in} ON {table} ({column})")
             db.execute(f"DROP INDEX {index_name} ON {table}")
-            dropped.append(index_name)
             stand_ins.append(stand_in)
+        dropped.append(index_name)
     return {"dropped": dropped, "foreign_key_stand_ins": stand_ins}
 
 
 def drop_stand_ins():
     removed = []
-    for row in db.query_all(
-        """
-        SELECT DISTINCT TABLE_NAME, INDEX_NAME FROM information_schema.STATISTICS
-        WHERE TABLE_SCHEMA = %s AND INDEX_NAME LIKE 'tmpfk\\_%%'
-        """,
-        (config.MYSQL_DB,),
-    ):
+    for row in _indexes_named("tmpfk"):
         try:
             db.execute(f"DROP INDEX {row['INDEX_NAME']} ON {row['TABLE_NAME']}")
             removed.append(row["INDEX_NAME"])

@@ -2,7 +2,6 @@ import random
 from datetime import datetime, timedelta
 from decimal import Decimal
 
-from app import config
 from app import database as db
 
 CENT = Decimal("0.01")
@@ -163,7 +162,6 @@ def generate(n_customers=60, days=120, fraud_account_ratio=0.40, seed=42,
         wipe()
 
     accounts = create_population(n_customers, rng)
-    by_id = {a["account_id"]: a for a in accounts}
     start = datetime.now() - timedelta(days=days)
     start = start.replace(hour=0, minute=0, second=0, microsecond=0)
 

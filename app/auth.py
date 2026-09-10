@@ -86,15 +86,3 @@ def login(username, password, ip_address=None) -> dict:
 
     user.pop("password_hash", None)
     return user
-
-
-def get_user(user_id) -> dict | None:
-    row = db.query_one(
-        """
-        SELECT user_id, customer_id, username, role, status,
-               failed_login_attempts, last_login_at, created_at
-        FROM users WHERE user_id = %s
-        """,
-        (user_id,),
-    )
-    return row

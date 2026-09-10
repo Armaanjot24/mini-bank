@@ -25,10 +25,13 @@ def _print_rows(rows, columns=None, limit=None):
         print("  " + "  ".join(str(row.get(c, "")).ljust(widths[c]) for c in columns))
 
 
-def _run_sql_file(path):
-    text = path.read_text()
-    statements = [s.strip() for s in text.split(";") if s.strip()]
-    conn = db.get_connection(autocommit=True)
+def _run_sql_file(path, database=True):
+    """database=False connects to the server with no schema selected, which is how
+    01_schema.sql can CREATE the database it later USEs."""
+    statements = [s.strip() for s in path.read_text().split(";") if s.strip()]
+    conn = (db.get_connection(autocommit=True) if database else
+            pymysql.connect(host=config.MYSQL_HOST, user=config.MYSQL_USER,
+                            password=config.MYSQL_PASSWORD, autocommit=True))
     try:
         with conn.cursor() as cur:
             for statement in statements:
@@ -43,20 +46,8 @@ def cmd_setup(args):
     files = ["01_schema.sql", "03_views.sql"]
     if args.with_indexes:
         files.append("04_indexes.sql")
-
-    conn = pymysql.connect(host=config.MYSQL_HOST, user=config.MYSQL_USER,
-                           password=config.MYSQL_PASSWORD, autocommit=True)
-    try:
-        with conn.cursor() as cur:
-            for statement in (config.BASE_DIR / "sql" / "01_schema.sql").read_text().split(";"):
-                if statement.strip():
-                    cur.execute(statement)
-    finally:
-        conn.close()
-    print(f"  applied 01_schema.sql -> database {config.MYSQL_DB}")
-
-    for name in files[1:]:
-        count = _run_sql_file(sql_dir / name)
+    for name in files:
+        count = _run_sql_file(sql_dir / name, database=(name != "01_schema.sql"))
         print(f"  applied {name} ({count} statements)")
 
 
@@ -87,16 +78,16 @@ def cmd_balance(args):
           f"{account['status']}): {account['currency']} {account['balance']}")
 
 
-def cmd_deposit(args):
-    result = banking.deposit(args.account_id, args.amount)
-    print(f"  deposited {args.amount}: {result['balance_before']} -> "
-          f"{result['balance_after']}  ref {result['reference']}")
+def _cmd_movement(verb, fn):
+    def run(args):
+        result = fn(args.account_id, args.amount)
+        print(f"  {verb} {args.amount}: {result['balance_before']} -> "
+              f"{result['balance_after']}  ref {result['reference']}")
+    return run
 
 
-def cmd_withdraw(args):
-    result = banking.withdraw(args.account_id, args.amount)
-    print(f"  withdrew {args.amount}: {result['balance_before']} -> "
-          f"{result['balance_after']}  ref {result['reference']}")
+cmd_deposit = _cmd_movement("deposited", banking.deposit)
+cmd_withdraw = _cmd_movement("withdrew", banking.withdraw)
 
 
 def cmd_transfer(args):

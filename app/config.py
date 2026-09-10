@@ -1,5 +1,4 @@
 import os
-from decimal import Decimal
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -26,8 +25,6 @@ MYSQL_USER = _require("MYSQL_USER")
 MYSQL_PASSWORD = _require("MYSQL_PASSWORD")
 MYSQL_DB = _require("MYSQL_DB")
 
-DEFAULT_DAILY_TRANSFER_LIMIT = Decimal("100000.00")
-DEFAULT_MAX_TXN_AMOUNT = Decimal("50000.00")
 
 RISK_FLAG_THRESHOLD = 0.50
 RISK_HIGH_THRESHOLD = 0.80

@@ -6,7 +6,7 @@ import pymysql
 
 from app import banking, customers
 from app import database as db
-from app.errors import BankingError, InsufficientFunds
+from app.errors import BankingError
 
 
 def _fresh_account(balance) -> int:
@@ -18,15 +18,20 @@ def _fresh_account(balance) -> int:
     return customers.create_account(cust, "SAVINGS", balance)["account_id"]
 
 
-def unsafe_withdraw(account_id, amount, delay=0.20) -> str:
+def _withdraw(account_id, amount, lock, delay=0.20) -> str:
+    """One withdrawal, with or without the row lock. The `lock` flag is the
+    entire difference between a correct and a broken read-modify-write."""
     amount = banking.money(amount)
     conn = db.get_connection()
     try:
         conn.begin()
         with conn.cursor() as cur:
-            cur.execute("SELECT balance FROM accounts WHERE account_id = %s",
-                        (account_id,))
-            before = cur.fetchone()["balance"]
+            if lock:
+                before = banking.lock_account(cur, account_id)["balance"]
+            else:
+                cur.execute("SELECT balance FROM accounts WHERE account_id = %s",
+                            (account_id,))
+                before = cur.fetchone()["balance"]
 
             time.sleep(delay)
 
@@ -44,7 +49,7 @@ def unsafe_withdraw(account_id, amount, delay=0.20) -> str:
                 VALUES (%s, 'WITHDRAWAL', %s, %s, %s, %s)
                 """,
                 (account_id, amount, before, after,
-                 banking.new_reference("UNSAFE")),
+                 banking.new_reference("SAFE" if lock else "UNSAFE")),
             )
         conn.commit()
         return f"succeeded (read {before} -> wrote {after})"
@@ -53,41 +58,14 @@ def unsafe_withdraw(account_id, amount, delay=0.20) -> str:
         return f"db error: {exc.args[1] if len(exc.args) > 1 else exc}"
     finally:
         conn.close()
+
+
+def unsafe_withdraw(account_id, amount, delay=0.20) -> str:
+    return _withdraw(account_id, amount, lock=False, delay=delay)
 
 
 def safe_withdraw(account_id, amount, delay=0.20) -> str:
-    amount = banking.money(amount)
-    conn = db.get_connection()
-    try:
-        conn.begin()
-        with conn.cursor() as cur:
-            account = banking.lock_account(cur, account_id)
-            before = account["balance"]
-
-            time.sleep(delay)
-
-            if before < amount:
-                conn.rollback()
-                return f"rejected (read {before})"
-            after = before - amount
-            cur.execute("UPDATE accounts SET balance = %s WHERE account_id = %s",
-                        (after, account_id))
-            cur.execute(
-                """
-                INSERT INTO transactions
-                    (account_id, transaction_type, amount, balance_before,
-                     balance_after, reference)
-                VALUES (%s, 'WITHDRAWAL', %s, %s, %s, %s)
-                """,
-                (account_id, amount, before, after, banking.new_reference("SAFE")),
-            )
-        conn.commit()
-        return f"succeeded (read {before} -> wrote {after})"
-    except pymysql.MySQLError as exc:
-        conn.rollback()
-        return f"db error: {exc.args[1] if len(exc.args) > 1 else exc}"
-    finally:
-        conn.close()
+    return _withdraw(account_id, amount, lock=True, delay=delay)
 
 
 def _run_concurrently(fn, jobs) -> list[str]:
