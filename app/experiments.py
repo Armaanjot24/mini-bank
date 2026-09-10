@@ -149,8 +149,8 @@ def rollback_demo(amount=300) -> dict:
 
 
 def _ordered_transfer(a, b, amount, order, delay=0.20) -> str:
-    """Move money A->B, taking the two row locks in the given order. A deadlock needs
-    only the two conflicting locks, so this writes balances but no ledger rows."""
+    """Move money A->B, taking the two row locks in the given order. Writes the full
+    ledger, not just the balances: reconcile() must stay clean after this runs."""
     amount = banking.money(amount)
     conn = db.get_connection()
     try:
@@ -161,11 +161,25 @@ def _ordered_transfer(a, b, amount, order, delay=0.20) -> str:
             time.sleep(delay)
             locked[second] = banking.lock_account(cur, second)
 
-            for account_id, sign in ((a, -1), (b, +1)):
-                cur.execute(
-                    "UPDATE accounts SET balance = %s WHERE account_id = %s",
-                    (locked[account_id]["balance"] + sign * amount, account_id),
-                )
+            reference = banking.new_reference("DLK")
+            cur.execute(
+                """
+                INSERT INTO transfers (from_account_id, to_account_id, amount,
+                                       status, reference)
+                VALUES (%s, %s, %s, 'COMPLETED', %s)
+                """,
+                (a, b, amount, reference),
+            )
+            transfer_id = cur.lastrowid
+            for account_id, sign, leg in ((a, -1, "TRANSFER_OUT"),
+                                          (b, +1, "TRANSFER_IN")):
+                before = locked[account_id]["balance"]
+                after = before + sign * amount
+                cur.execute("UPDATE accounts SET balance = %s WHERE account_id = %s",
+                            (after, account_id))
+                banking._insert_transaction(cur, account_id, leg, amount, before,
+                                            after, f"{reference}-{leg[-3:]}",
+                                            transfer_id=transfer_id)
         conn.commit()
         return "committed"
     except pymysql.err.OperationalError as exc:
