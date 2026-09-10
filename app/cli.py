@@ -107,21 +107,23 @@ def cmd_history(args):
                        "status", "risk_status", "reference"])
 
 
+REPORTS = [
+    ("top customers by balance", lambda: analytics.top_customers_by_balance(10), None),
+    ("transaction statistics", analytics.transaction_stats, None),
+    ("monthly summary", analytics.monthly_summary, None),
+    ("account ranking - window functions", lambda: analytics.account_ranking(8),
+     ["account_number", "full_name", "total_volume", "volume_rank",
+      "rank_in_type", "pct_of_total_volume"]),
+    ("suspicious transactions", lambda: analytics.suspicious_report(8),
+     ["created_at", "account_number", "amount", "risk_score", "risk_status",
+      "is_fraud"]),
+]
+
+
 def cmd_report(args):
-    print("\n[top customers by balance]")
-    _print_rows(analytics.top_customers_by_balance(10))
-    print("\n[transaction statistics]")
-    _print_rows(analytics.transaction_stats())
-    print("\n[monthly summary]")
-    _print_rows(analytics.monthly_summary(), limit=6)
-    print("\n[account ranking - window functions]")
-    _print_rows(analytics.account_ranking(8),
-                ["account_number", "full_name", "total_volume", "volume_rank",
-                 "rank_in_type", "pct_of_total_volume"])
-    print("\n[suspicious transactions]")
-    _print_rows(analytics.suspicious_report(8),
-                ["created_at", "account_number", "amount", "risk_score",
-                 "risk_status", "is_fraud"])
+    for title, fetch, columns in REPORTS:
+        print(f"\n[{title}]")
+        _print_rows(fetch(), columns, limit=6)
 
 
 def cmd_reconcile(args):
@@ -133,41 +135,32 @@ def cmd_reconcile(args):
         _print_rows(mismatches)
 
 
+DEMOS = {
+    "race":      ("Two concurrent withdrawals (800 and 700) against 1000",
+                  lambda: experiments.lost_update_demo()),
+    "rollback":  ("Crash injected after both balances were updated",
+                  lambda: {"ROLLBACK": experiments.rollback_demo()}),
+    "deadlock":  ("Simultaneous A->B and B->A transfers",
+                  lambda: experiments.deadlock_demo()),
+    "isolation": ("One session reads twice while another commits in between",
+                  lambda: experiments.isolation_demo()),
+    "limits":    ("Per-transaction and daily transfer limits",
+                  lambda: {"LIMITS": experiments.limit_demo()}),
+}
+
+
 def cmd_demo(args):
-    if args.name == "race":
-        print("Two concurrent withdrawals (800 and 700) against a balance of 1000\n")
-        for label, report in experiments.lost_update_demo().items():
-            print(f"[{label}]")
-            for outcome in report["outcomes"]:
-                print(f"    {outcome}")
-            print(f"    stored balance {report['stored_balance']}, "
-                  f"{report['successful_withdrawals']} succeeded, "
-                  f"total withdrawn {report['total_withdrawn']}")
-            print(f"    ledger reconciles: {report['reconciles']}\n")
-
-    elif args.name == "rollback":
-        report = experiments.rollback_demo()
-        print(f"  raised           : {report['error']}")
-        print(f"  balances before  : {report['before']}")
-        print(f"  balances after   : {report['after']}")
-        print(f"  unchanged        : {report['unchanged']}")
-        print(f"  transfer rows    : {report['transfer_rows_left']}")
-
-    elif args.name == "deadlock":
-        for label, report in experiments.deadlock_demo().items():
-            print(f"[{label}] deadlocks={report['deadlocks']}")
-            for outcome in report["outcomes"]:
-                print(f"    {outcome}")
-
-    elif args.name == "isolation":
-        for level, report in experiments.isolation_demo().items():
-            print(f"  {level:18} first={report['first_read']} "
-                  f"second={report['second_read']} "
-                  f"saw other commit={report['saw_other_commit']}")
-
-    elif args.name == "limits":
-        for outcome in experiments.limit_demo()["outcomes"]:
+    """Every demo returns {label: {field: value}}, so one printer serves them all.
+    `outcomes` is the one list field and gets a line each."""
+    caption, run = DEMOS[args.name]
+    print(f"{caption}\n")
+    for label, group in run().items():
+        print(f"[{label}]")
+        for outcome in group.pop("outcomes", []):
             print(f"    {outcome}")
+        for field, value in group.items():
+            print(f"    {field:24} {value}")
+        print()
 
 
 def cmd_benchmark(args):
@@ -188,82 +181,64 @@ def cmd_benchmark(args):
 
 
 def cmd_ml(args):
-    if args.action == "generate":
-        from ml.generate_data import generate
-        generate(n_customers=args.customers, days=args.days)
-    elif args.action == "train":
-        from ml.train import train
-        train()
-    elif args.action == "evaluate":
-        from ml.evaluate import evaluate
-        evaluate()
-    elif args.action == "score":
-        from ml.predict import backfill_scores
-        backfill_scores()
-    elif args.action == "check":
+    if args.action == "check":
         from ml.predict import score_account_amount
         print(f"  {score_account_amount(args.account_id, args.amount)}")
+        return
+    import importlib
+    module, fn = {"generate": ("ml.generate_data", "generate"),
+                  "train":    ("ml.train", "train"),
+                  "evaluate": ("ml.evaluate", "evaluate"),
+                  "score":    ("ml.predict", "backfill_scores")}[args.action]
+    call = getattr(importlib.import_module(module), fn)
+    call(n_customers=args.customers, days=args.days) if args.action == "generate" else call()
+
+
+# name -> (help, [argparse arg specs], handler)
+COMMANDS = {
+    "setup":     ("create database, tables and views",
+                  [("--with-indexes", {"action": "store_true"})], cmd_setup),
+    "seed":      ("insert demo customers and accounts", [], cmd_seed),
+    "balance":   ("show one account", [("account_id", {"type": int})], cmd_balance),
+    "deposit":   ("pay money in",
+                  [("account_id", {"type": int}), ("amount", {"type": Decimal})],
+                  cmd_deposit),
+    "withdraw":  ("take money out",
+                  [("account_id", {"type": int}), ("amount", {"type": Decimal})],
+                  cmd_withdraw),
+    "transfer":  ("move money between two accounts",
+                  [("from_account", {"type": int}), ("to_account", {"type": int}),
+                   ("amount", {"type": Decimal}),
+                   ("--no-risk", {"action": "store_true"})], cmd_transfer),
+    "history":   ("recent transactions for an account",
+                  [("account_id", {"type": int}),
+                   ("--limit", {"type": int, "default": 15})], cmd_history),
+    "report":    ("analytics views", [], cmd_report),
+    "reconcile": ("check every balance against the ledger", [], cmd_reconcile),
+    "demo":      ("concurrency and transaction experiments",
+                  [("name", {"choices": list(DEMOS)})], cmd_demo),
+    "benchmark": ("index EXPLAIN + timing comparison",
+                  [("account_id", {"type": int}),
+                   ("--repeats", {"type": int, "default": 30})], cmd_benchmark),
+    "ml":        ("generate / train / evaluate / score the fraud model",
+                  [("action", {"choices": ["generate", "train", "evaluate",
+                                           "score", "check"]}),
+                   ("--customers", {"type": int, "default": 60}),
+                   ("--days", {"type": int, "default": 120}),
+                   ("--account-id", {"type": int, "default": 1}),
+                   ("--amount", {"type": Decimal, "default": Decimal("10000")})],
+                  cmd_ml),
+}
 
 
 def build_parser():
     parser = argparse.ArgumentParser(prog="mini-bank")
     sub = parser.add_subparsers(dest="command", required=True)
-
-    setup = sub.add_parser("setup", help="create database, tables and views")
-    setup.add_argument("--with-indexes", action="store_true")
-    setup.set_defaults(func=cmd_setup)
-
-    sub.add_parser("seed", help="insert demo customers and accounts").set_defaults(
-        func=cmd_seed)
-
-    balance = sub.add_parser("balance")
-    balance.add_argument("account_id", type=int)
-    balance.set_defaults(func=cmd_balance)
-
-    deposit = sub.add_parser("deposit")
-    deposit.add_argument("account_id", type=int)
-    deposit.add_argument("amount", type=Decimal)
-    deposit.set_defaults(func=cmd_deposit)
-
-    withdraw = sub.add_parser("withdraw")
-    withdraw.add_argument("account_id", type=int)
-    withdraw.add_argument("amount", type=Decimal)
-    withdraw.set_defaults(func=cmd_withdraw)
-
-    transfer = sub.add_parser("transfer")
-    transfer.add_argument("from_account", type=int)
-    transfer.add_argument("to_account", type=int)
-    transfer.add_argument("amount", type=Decimal)
-    transfer.add_argument("--no-risk", action="store_true")
-    transfer.set_defaults(func=cmd_transfer)
-
-    history = sub.add_parser("history")
-    history.add_argument("account_id", type=int)
-    history.add_argument("--limit", type=int, default=15)
-    history.set_defaults(func=cmd_history)
-
-    sub.add_parser("report").set_defaults(func=cmd_report)
-    sub.add_parser("reconcile").set_defaults(func=cmd_reconcile)
-
-    demo = sub.add_parser("demo", help="concurrency and transaction experiments")
-    demo.add_argument("name", choices=["race", "rollback", "deadlock",
-                                       "isolation", "limits"])
-    demo.set_defaults(func=cmd_demo)
-
-    benchmark = sub.add_parser("benchmark", help="index EXPLAIN + timing comparison")
-    benchmark.add_argument("account_id", type=int)
-    benchmark.add_argument("--repeats", type=int, default=30)
-    benchmark.set_defaults(func=cmd_benchmark)
-
-    ml = sub.add_parser("ml")
-    ml.add_argument("action", choices=["generate", "train", "evaluate", "score",
-                                       "check"])
-    ml.add_argument("--customers", type=int, default=60)
-    ml.add_argument("--days", type=int, default=120)
-    ml.add_argument("--account-id", type=int, default=1)
-    ml.add_argument("--amount", type=Decimal, default=Decimal("10000"))
-    ml.set_defaults(func=cmd_ml)
-
+    for name, (help_text, arguments, func) in COMMANDS.items():
+        child = sub.add_parser(name, help=help_text)
+        for flag, options in arguments:
+            child.add_argument(flag, **options)
+        child.set_defaults(func=func)
     return parser
 
 

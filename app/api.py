@@ -4,6 +4,7 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
 from app import analytics, auth, banking, customers
+from app import database as db
 from app.errors import (
     AccountNotActive,
     AuthError,
@@ -69,15 +70,14 @@ class LoginIn(BaseModel):
 
 @app.get("/health")
 def health():
-    from app import database as db
     return db.ping()
 
 
 @app.post("/customers", status_code=201)
 def create_customer(payload: CustomerIn):
-    customer_id = _handle(customers.create_customer, payload.full_name,
-                          payload.email, payload.phone, payload.date_of_birth)
-    return _handle(customers.get_customer, customer_id)
+    new_id = _handle(customers.create_customer, payload.full_name, payload.email,
+                     payload.phone, payload.date_of_birth)
+    return _handle(customers.get_customer, new_id)
 
 
 @app.get("/customers/{customer_id}")

@@ -149,6 +149,8 @@ def rollback_demo(amount=300) -> dict:
 
 
 def _ordered_transfer(a, b, amount, order, delay=0.20) -> str:
+    """Move money A->B, taking the two row locks in the given order. A deadlock needs
+    only the two conflicting locks, so this writes balances but no ledger rows."""
     amount = banking.money(amount)
     conn = db.get_connection()
     try:
@@ -159,29 +161,11 @@ def _ordered_transfer(a, b, amount, order, delay=0.20) -> str:
             time.sleep(delay)
             locked[second] = banking.lock_account(cur, second)
 
-            reference = banking.new_reference("DLK")
-            cur.execute(
-                """
-                INSERT INTO transfers (from_account_id, to_account_id, amount,
-                                       status, reference)
-                VALUES (%s, %s, %s, 'COMPLETED', %s)
-                """,
-                (a, b, amount, reference),
-            )
-            transfer_id = cur.lastrowid
-
-            src_before = locked[a]["balance"]
-            tgt_before = locked[b]["balance"]
-            cur.execute("UPDATE accounts SET balance = %s WHERE account_id = %s",
-                        (src_before - amount, a))
-            cur.execute("UPDATE accounts SET balance = %s WHERE account_id = %s",
-                        (tgt_before + amount, b))
-            banking._insert_transaction(cur, a, "TRANSFER_OUT", amount, src_before,
-                                        src_before - amount, f"{reference}-OUT",
-                                        transfer_id=transfer_id)
-            banking._insert_transaction(cur, b, "TRANSFER_IN", amount, tgt_before,
-                                        tgt_before + amount, f"{reference}-IN",
-                                        transfer_id=transfer_id)
+            for account_id, sign in ((a, -1), (b, +1)):
+                cur.execute(
+                    "UPDATE accounts SET balance = %s WHERE account_id = %s",
+                    (locked[account_id]["balance"] + sign * amount, account_id),
+                )
         conn.commit()
         return "committed"
     except pymysql.err.OperationalError as exc:
