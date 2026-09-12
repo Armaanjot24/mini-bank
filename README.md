@@ -4,8 +4,6 @@ A banking backend in Python + MySQL where the database enforces the rules: trans
 ACID, concurrent access uses row-level locking, and an ML layer scores transactions for
 fraud risk without being able to override any banking check.
 
-No frontend, no ORM, no Docker. Raw SQL, ~2,900 lines of Python across 20 modules,
-354 lines of SQL, MySQL 9.
 
 ## Schema
 
@@ -151,7 +149,7 @@ python -m app.cli demo isolation     # REPEATABLE READ vs READ COMMITTED
 python -m app.cli demo limits
 python -m app.cli benchmark 35       # EXPLAIN + timing, with and without indexes
 ```
-
+..
 ML:
 
 ```bash
