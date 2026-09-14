@@ -1,0 +1,948 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Fraud Alert Dashboard | Mini Banking Core</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-base: #0a0d14;
+      --bg-surface: #111726;
+      --bg-card: #161f33;
+      --bg-card-hover: #1c2740;
+      --border-color: #232e47;
+      --border-focus: #3b82f6;
+      --text-main: #f1f5f9;
+      --text-muted: #94a3b8;
+      --text-subtle: #64748b;
+      --accent: #3b82f6;
+      --accent-glow: rgba(59, 130, 246, 0.2);
+      --danger: #ef4444;
+      --danger-bg: rgba(239, 68, 68, 0.12);
+      --danger-border: rgba(239, 68, 68, 0.3);
+      --warning: #f59e0b;
+      --warning-bg: rgba(245, 158, 11, 0.12);
+      --warning-border: rgba(245, 158, 11, 0.3);
+      --success: #10b981;
+      --success-bg: rgba(16, 185, 129, 0.12);
+      --success-border: rgba(16, 185, 129, 0.3);
+      --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+      --radius: 10px;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-base);
+      color: var(--text-main);
+      font-family: var(--font-sans);
+      line-height: 1.5;
+      padding: 24px;
+      min-height: 100vh;
+    }
+
+    .container {
+      max-width: 1280px;
+      margin: 0 auto;
+    }
+
+    /* Header */
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-bottom: 24px;
+      margin-bottom: 24px;
+      border-bottom: 1px solid var(--border-color);
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+
+    .brand-section {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand-icon {
+      width: 42px;
+      height: 42px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, #ef4444 0%, #3b82f6 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      box-shadow: 0 4px 12px rgba(239, 68, 68, 0.25);
+    }
+
+    .brand-title h1 {
+      font-size: 1.35rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+
+    .brand-title p {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.78rem;
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-weight: 500;
+      background: var(--bg-surface);
+      border: 1px solid var(--border-color);
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+    }
+
+    .status-live .status-dot {
+      background-color: var(--success);
+      box-shadow: 0 0 8px var(--success);
+    }
+
+    .status-demo .status-dot {
+      background-color: var(--warning);
+      box-shadow: 0 0 8px var(--warning);
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      border: 1px solid var(--border-color);
+      background: var(--bg-surface);
+      color: var(--text-main);
+      transition: all 0.15s ease-in-out;
+    }
+
+    .btn:hover {
+      background: var(--bg-card-hover);
+      border-color: var(--text-subtle);
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+
+    .btn-primary:hover {
+      background: #2563eb;
+      border-color: #2563eb;
+    }
+
+    /* Metrics Grid */
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .metric-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius);
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .metric-card::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: var(--card-accent, var(--accent));
+      opacity: 0.8;
+    }
+
+    .metric-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+
+    .metric-title {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .metric-icon {
+      font-size: 1.1rem;
+      opacity: 0.8;
+    }
+
+    .metric-value {
+      font-size: 1.8rem;
+      font-weight: 700;
+      font-family: var(--font-mono);
+      letter-spacing: -0.02em;
+    }
+
+    .metric-sub {
+      font-size: 0.78rem;
+      color: var(--text-subtle);
+      margin-top: 4px;
+    }
+
+    /* Main Content Layout */
+    .main-grid {
+      display: grid;
+      grid-template-columns: 2fr 1fr;
+      gap: 24px;
+    }
+
+    @media (max-width: 992px) {
+      .main-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* Panels */
+    .panel {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .panel-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .panel-title {
+      font-size: 1rem;
+      font-weight: 600;
+    }
+
+    /* Controls & Filters */
+    .filter-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .search-input, .text-input {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      color: var(--text-main);
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 0.82rem;
+      outline: none;
+      transition: border-color 0.15s ease;
+    }
+
+    .search-input:focus, .text-input:focus {
+      border-color: var(--border-focus);
+    }
+
+    .filter-btn {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      color: var(--text-muted);
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .filter-btn:hover, .filter-btn.active {
+      background: var(--accent);
+      color: #fff;
+      border-color: var(--accent);
+    }
+
+    /* Alerts Table */
+    .table-container {
+      overflow-x: auto;
+      max-height: 560px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+      font-size: 0.85rem;
+    }
+
+    th {
+      background: var(--bg-card);
+      color: var(--text-muted);
+      font-weight: 600;
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border-color);
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      position: sticky;
+      top: 0;
+      z-index: 1;
+    }
+
+    td {
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--border-color);
+      vertical-align: middle;
+    }
+
+    tr:hover td {
+      background: var(--bg-card-hover);
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+    }
+
+    .badge-high {
+      background: var(--danger-bg);
+      color: var(--danger);
+      border: 1px solid var(--danger-border);
+    }
+
+    .badge-medium {
+      background: var(--warning-bg);
+      color: var(--warning);
+      border: 1px solid var(--warning-border);
+    }
+
+    .score-cell {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-family: var(--font-mono);
+      font-weight: 600;
+    }
+
+    .score-bar-bg {
+      width: 48px;
+      height: 6px;
+      background: var(--bg-base);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+
+    .score-bar-fill {
+      height: 100%;
+      border-radius: 3px;
+    }
+
+    .reason-text {
+      max-width: 260px;
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      display: block;
+    }
+
+    .account-text {
+      font-family: var(--font-mono);
+      font-weight: 500;
+      color: var(--text-main);
+      display: block;
+    }
+
+    .customer-text {
+      font-size: 0.75rem;
+      color: var(--text-subtle);
+      display: block;
+    }
+
+    /* Right Sidebar: Risk Simulator */
+    .simulator-form {
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .form-label {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--text-muted);
+    }
+
+    .result-box {
+      margin-top: 8px;
+      padding: 16px;
+      border-radius: 8px;
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      display: none;
+    }
+
+    .result-box.visible {
+      display: block;
+      animation: fadeIn 0.2s ease-in-out;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .result-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+
+    .result-score-title {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+    }
+
+    .result-score-val {
+      font-family: var(--font-mono);
+      font-size: 1.4rem;
+      font-weight: 700;
+    }
+
+    .result-reason {
+      font-size: 0.82rem;
+      color: var(--text-main);
+      line-height: 1.4;
+      background: var(--bg-base);
+      padding: 10px;
+      border-radius: 6px;
+      border: 1px solid var(--border-color);
+    }
+
+    .settings-note {
+      font-size: 0.75rem;
+      color: var(--text-subtle);
+      margin-top: 12px;
+      line-height: 1.4;
+    }
+
+    /* Empty state */
+    .empty-state {
+      padding: 40px;
+      text-align: center;
+      color: var(--text-subtle);
+      font-size: 0.9rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <header>
+      <div class="brand-section">
+        <div class="brand-icon">🛡️</div>
+        <div class="brand-title">
+          <h1>Fraud Alert Operations Console</h1>
+          <p>Mini Banking System • Real-Time ML Transaction Monitoring</p>
+        </div>
+      </div>
+      <div class="header-actions">
+        <span class="status-badge status-demo" id="apiStatusBadge">
+          <span class="status-dot"></span>
+          <span id="apiStatusText">Demo Mode</span>
+        </span>
+        <button class="btn" id="btnRefresh" title="Refresh alerts from backend">
+          🔄 Refresh
+        </button>
+        <button class="btn btn-primary" id="btnToggleSource">
+          Toggle Live / Demo
+        </button>
+      </div>
+    </header>
+
+    <!-- Metrics Cards -->
+    <div class="metrics-grid">
+      <div class="metric-card" style="--card-accent: var(--accent);">
+        <div class="metric-header">
+          <span class="metric-title">Total Flagged</span>
+          <span class="metric-icon">📑</span>
+        </div>
+        <div class="metric-value" id="metricTotal">0</div>
+        <div class="metric-sub">Medium & High risk alerts</div>
+      </div>
+
+      <div class="metric-card" style="--card-accent: var(--danger);">
+        <div class="metric-header">
+          <span class="metric-title">High Risk</span>
+          <span class="metric-icon">🚨</span>
+        </div>
+        <div class="metric-value" style="color: var(--danger);" id="metricHigh">0</div>
+        <div class="metric-sub">Score &ge; 0.50 (Action required)</div>
+      </div>
+
+      <div class="metric-card" style="--card-accent: var(--warning);">
+        <div class="metric-header">
+          <span class="metric-title">Medium Risk</span>
+          <span class="metric-icon">⚠️</span>
+        </div>
+        <div class="metric-value" style="color: var(--warning);" id="metricMed">0</div>
+        <div class="metric-sub">Score between 0.30 - 0.49</div>
+      </div>
+
+      <div class="metric-card" style="--card-accent: var(--success);">
+        <div class="metric-header">
+          <span class="metric-title">Flagged Volume</span>
+          <span class="metric-icon">💰</span>
+        </div>
+        <div class="metric-value" id="metricVolume">₹0.00</div>
+        <div class="metric-sub">Total amount at risk</div>
+      </div>
+    </div>
+
+    <!-- Main Grid -->
+    <div class="main-grid">
+      <!-- Left Column: Alerts Feed -->
+      <div class="panel">
+        <div class="panel-header">
+          <h2 class="panel-title">Suspicious Transactions Feed</h2>
+          <div class="filter-group">
+            <input type="text" id="searchInput" class="search-input" placeholder="Search account, customer, reason...">
+            <button class="filter-btn active" data-filter="ALL">All</button>
+            <button class="filter-btn" data-filter="HIGH">High</button>
+            <button class="filter-btn" data-filter="MEDIUM">Med</button>
+          </div>
+        </div>
+
+        <div class="table-container">
+          <table id="alertsTable">
+            <thead>
+              <tr>
+                <th>Risk Level</th>
+                <th>Account / Customer</th>
+                <th>Amount</th>
+                <th>Risk Score</th>
+                <th>Trigger Reason</th>
+                <th>Date / Time</th>
+              </tr>
+            </thead>
+            <tbody id="alertsBody">
+              <!-- Rows injected via JS -->
+            </tbody>
+          </table>
+          <div id="emptyState" class="empty-state" style="display: none;">
+            No suspicious transactions match your filter criteria.
+          </div>
+        </div>
+      </div>
+
+      <!-- Right Column: Live Risk Simulator -->
+      <div class="panel">
+        <div class="panel-header">
+          <h2 class="panel-title">Risk Scoring Simulator</h2>
+        </div>
+        <div class="simulator-form">
+          <p style="font-size: 0.8rem; color: var(--text-muted);">
+            Test transactions against the ML feature model in real-time.
+          </p>
+
+          <div class="form-group">
+            <label class="form-label" for="simAccountId">Target Account ID</label>
+            <input type="number" id="simAccountId" class="text-input" value="1" min="1">
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="simAmount">Transfer Amount (₹)</label>
+            <input type="number" id="simAmount" class="text-input" value="45000" min="1" step="0.01">
+          </div>
+
+          <button class="btn btn-primary" id="btnSimulate">
+            ⚡ Evaluate Risk Score
+          </button>
+
+          <!-- Result Box -->
+          <div id="simResultBox" class="result-box">
+            <div class="result-header">
+              <div>
+                <div class="result-score-title">Estimated Risk</div>
+                <div id="simRiskBadge" class="badge badge-high">HIGH RISK</div>
+              </div>
+              <div class="result-score-val" id="simRiskScore">0.89</div>
+            </div>
+            <div class="form-label" style="margin-bottom: 4px;">Identified Risk Factors:</div>
+            <div class="result-reason" id="simRiskReason">
+              Amount is 14.2x this account's historical average; sudden velocity spike.
+            </div>
+          </div>
+
+          <div class="settings-note">
+            <strong>Backend Connection:</strong><br>
+            Default: <code style="color: var(--accent);">http://127.0.0.1:8000</code><br>
+            Endpoint: <code style="color: var(--text-muted);">/transactions/suspicious</code><br>
+            If FastAPI is offline or blocked by CORS, click <em>"Toggle Live / Demo"</em> to view sample data.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Sample realistic data modeled directly on v_suspicious_transactions view
+    const DEMO_ALERTS = [
+      {
+        transaction_id: 1042,
+        created_at: new Date(Date.now() - 1000 * 60 * 14).toISOString().replace('T', ' ').slice(0, 19),
+        account_number: "ACC-8921-4402",
+        full_name: "Rahul Verma",
+        transaction_type: "TRANSFER_OUT",
+        amount: 85000.00,
+        status: "FLAGGED",
+        risk_score: 0.94,
+        risk_status: "HIGH",
+        risk_reason: "Amount is 18.8x historical average (₹4,520); only 14s since previous transaction"
+      },
+      {
+        transaction_id: 1038,
+        created_at: new Date(Date.now() - 1000 * 60 * 48).toISOString().replace('T', ' ').slice(0, 19),
+        account_number: "ACC-1102-7749",
+        full_name: "Ananya Sharma",
+        transaction_type: "TRANSFER_OUT",
+        amount: 49500.00,
+        status: "FLAGGED",
+        risk_score: 0.88,
+        risk_status: "HIGH",
+        risk_reason: "Rapid velocity: 4 outgoing transfers within 60 minutes; odd hour (03:14 AM)"
+      },
+      {
+        transaction_id: 1025,
+        created_at: new Date(Date.now() - 1000 * 60 * 180).toISOString().replace('T', ' ').slice(0, 19),
+        account_number: "ACC-5531-9012",
+        full_name: "Vikram Patel",
+        transaction_type: "TRANSFER_OUT",
+        amount: 92000.00,
+        status: "FLAGGED",
+        risk_score: 0.79,
+        risk_status: "HIGH",
+        risk_reason: "Account draining: transaction leaves less than 1.5% remaining balance"
+      },
+      {
+        transaction_id: 1012,
+        created_at: new Date(Date.now() - 1000 * 60 * 360).toISOString().replace('T', ' ').slice(0, 19),
+        account_number: "ACC-7834-1185",
+        full_name: "Pooja Reddy",
+        transaction_type: "TRANSFER_OUT",
+        amount: 22000.00,
+        status: "FLAGGED",
+        risk_score: 0.44,
+        risk_status: "MEDIUM",
+        risk_reason: "Amount z-score +2.4 above 30-day baseline; normal transfer velocity"
+      },
+      {
+        transaction_id: 998,
+        created_at: new Date(Date.now() - 1000 * 60 * 720).toISOString().replace('T', ' ').slice(0, 19),
+        account_number: "ACC-3341-2910",
+        full_name: "Karan Johar",
+        transaction_type: "TRANSFER_OUT",
+        amount: 17500.00,
+        status: "FLAGGED",
+        risk_score: 0.38,
+        risk_status: "MEDIUM",
+        risk_reason: "First-time transfer to new unverified beneficiary at unusual time"
+      }
+    ];
+
+    let currentAlerts = [...DEMO_ALERTS];
+    let activeFilter = "ALL";
+    let isLiveBackend = false;
+    const API_BASE = "http://127.0.0.1:8000";
+
+    // Format currency to INR
+    function formatINR(val) {
+      return new Intl.NumberFormat('en-IN', {
+        style: 'currency',
+        currency: 'INR',
+        maximumFractionDigits: 2
+      }).format(val);
+    }
+
+    // Update Top Metric Counters
+    function updateMetrics() {
+      const total = currentAlerts.length;
+      const high = currentAlerts.filter(a => a.risk_status === 'HIGH' || a.risk_score >= 0.5).length;
+      const med = currentAlerts.filter(a => a.risk_status === 'MEDIUM' || (a.risk_score >= 0.3 && a.risk_score < 0.5)).length;
+      const volume = currentAlerts.reduce((sum, a) => sum + Number(a.amount || 0), 0);
+
+      document.getElementById('metricTotal').textContent = total;
+      document.getElementById('metricHigh').textContent = high;
+      document.getElementById('metricMed').textContent = med;
+      document.getElementById('metricVolume').textContent = formatINR(volume);
+    }
+
+    // Render Table Rows
+    function renderAlerts() {
+      const tbody = document.getElementById('alertsBody');
+      const query = document.getElementById('searchInput').value.toLowerCase().trim();
+      const emptyState = document.getElementById('emptyState');
+
+      const filtered = currentAlerts.filter(alert => {
+        // Status filter
+        if (activeFilter !== "ALL" && alert.risk_status !== activeFilter) {
+          return false;
+        }
+        // Search query
+        if (query) {
+          const matchAccount = (alert.account_number || '').toLowerCase().includes(query);
+          const matchCustomer = (alert.full_name || '').toLowerCase().includes(query);
+          const matchReason = (alert.risk_reason || '').toLowerCase().includes(query);
+          return matchAccount || matchCustomer || matchReason;
+        }
+        return true;
+      });
+
+      tbody.innerHTML = '';
+
+      if (filtered.length === 0) {
+        emptyState.style.display = 'block';
+        return;
+      }
+      emptyState.style.display = 'none';
+
+      filtered.forEach(alert => {
+        const tr = document.createElement('tr');
+        const isHigh = alert.risk_status === 'HIGH' || alert.risk_score >= 0.5;
+        const badgeClass = isHigh ? 'badge-high' : 'badge-medium';
+        const badgeText = isHigh ? 'HIGH RISK' : 'MEDIUM RISK';
+        const barColor = isHigh ? 'var(--danger)' : 'var(--warning)';
+        const scorePct = Math.min(Math.round((alert.risk_score || 0) * 100), 100);
+
+        tr.innerHTML = `
+          <td><span class="badge ${badgeClass}">${badgeText}</span></td>
+          <td>
+            <span class="account-text">${alert.account_number || 'ACC-#' + alert.account_id}</span>
+            <span class="customer-text">${alert.full_name || 'Customer'}</span>
+          </td>
+          <td style="font-family: var(--font-mono); font-weight: 600;">
+            ${formatINR(alert.amount)}
+          </td>
+          <td>
+            <div class="score-cell">
+              <span>${Number(alert.risk_score || 0).toFixed(2)}</span>
+              <div class="score-bar-bg">
+                <div class="score-bar-fill" style="width: ${scorePct}%; background-color: ${barColor};"></div>
+              </div>
+            </div>
+          </td>
+          <td>
+            <span class="reason-text" title="${alert.risk_reason || 'Pattern anomaly detected'}">
+              ${alert.risk_reason || 'Pattern anomaly detected'}
+            </span>
+          </td>
+          <td style="font-size: 0.78rem; color: var(--text-subtle); white-space: nowrap;">
+            ${alert.created_at || 'Just now'}
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    // Try fetching from backend API
+    async function fetchFromBackend() {
+      try {
+        const res = await fetch(`${API_BASE}/transactions/suspicious?limit=50`, {
+          method: 'GET',
+          headers: { 'Accept': 'application/json' }
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          currentAlerts = data.length > 0 ? data : DEMO_ALERTS;
+          setBackendStatus(true, `Connected (${data.length} live records)`);
+          updateMetrics();
+          renderAlerts();
+          return true;
+        }
+      } catch (err) {
+        console.warn("Backend fetch failed, falling back to demo mode:", err.message);
+        setBackendStatus(false, "Demo Mode (Offline / CORS)");
+        return false;
+      }
+    }
+
+    function setBackendStatus(live, text) {
+      isLiveBackend = live;
+      const badge = document.getElementById('apiStatusBadge');
+      const label = document.getElementById('apiStatusText');
+      badge.className = `status-badge ${live ? 'status-live' : 'status-demo'}`;
+      label.textContent = text;
+    }
+
+    // Risk Simulator
+    async function handleSimulate() {
+      const accountId = document.getElementById('simAccountId').value;
+      const amount = document.getElementById('simAmount').value;
+      const resultBox = document.getElementById('simResultBox');
+      const badge = document.getElementById('simRiskBadge');
+      const scoreEl = document.getElementById('simRiskScore');
+      const reasonEl = document.getElementById('simRiskReason');
+
+      if (!accountId || !amount || Number(amount) <= 0) {
+        alert("Please enter a valid Account ID and positive Amount.");
+        return;
+      }
+
+      let score, status, reason;
+
+      // Try hitting the live endpoint if backend is up
+      let evaluated = false;
+      if (isLiveBackend) {
+        try {
+          const res = await fetch(`${API_BASE}/risk/score?account_id=${accountId}&amount=${amount}`);
+          if (res.ok) {
+            const data = await res.json();
+            score = data.risk_score;
+            status = data.risk_status;
+            reason = data.risk_reason;
+            evaluated = true;
+          }
+        } catch (e) {
+          // fallback to client logic
+        }
+      }
+
+      // Offline / Demo model calculation
+      if (!evaluated) {
+        const amt = Number(amount);
+        if (amt >= 50000) {
+          score = 0.91;
+          status = "HIGH";
+          reason = `High amount (${formatINR(amt)}) exceeds 12.5x typical account baseline; flagged for review.`;
+        } else if (amt >= 20000) {
+          score = 0.65;
+          status = "HIGH";
+          reason = `Elevated transfer size (${formatINR(amt)}); potential velocity anomaly.`;
+        } else if (amt >= 8000) {
+          score = 0.42;
+          status = "MEDIUM";
+          reason = `Moderate variance from account profile; score within caution band.`;
+        } else {
+          score = 0.12;
+          status = "LOW";
+          reason = `Normal transaction profile. Amount within historical 1-sigma distribution.`;
+        }
+      }
+
+      scoreEl.textContent = Number(score).toFixed(2);
+      if (status === "HIGH" || score >= 0.5) {
+        badge.className = "badge badge-high";
+        badge.textContent = "HIGH RISK";
+      } else if (status === "MEDIUM" || score >= 0.3) {
+        badge.className = "badge badge-medium";
+        badge.textContent = "MEDIUM RISK";
+      } else {
+        badge.className = "badge";
+        badge.style.background = "var(--success-bg)";
+        badge.style.color = "var(--success)";
+        badge.style.border = "1px solid var(--success-border)";
+        badge.textContent = "LOW RISK";
+      }
+      reasonEl.textContent = reason || "Evaluation complete.";
+      resultBox.classList.add('visible');
+    }
+
+    // Event Listeners
+    document.addEventListener('DOMContentLoaded', () => {
+      updateMetrics();
+      renderAlerts();
+
+      // Initial check for backend
+      fetchFromBackend();
+
+      // Refresh button
+      document.getElementById('btnRefresh').addEventListener('click', () => {
+        fetchFromBackend();
+      });
+
+      // Toggle live / demo button
+      document.getElementById('btnToggleSource').addEventListener('click', () => {
+        if (!isLiveBackend) {
+          fetchFromBackend();
+        } else {
+          currentAlerts = [...DEMO_ALERTS];
+          setBackendStatus(false, "Demo Mode");
+          updateMetrics();
+          renderAlerts();
+        }
+      });
+
+      // Search input
+      document.getElementById('searchInput').addEventListener('input', renderAlerts);
+
+      // Filter buttons
+      document.querySelectorAll('.filter-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          activeFilter = btn.getAttribute('data-filter');
+          renderAlerts();
+        });
+      });
+
+      // Simulator button
+      document.getElementById('btnSimulate').addEventListener('click', handleSimulate);
+    });
+  </script>
+</body>
+</html>
