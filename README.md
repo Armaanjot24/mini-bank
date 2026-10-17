@@ -194,7 +194,7 @@ threads block on socket I/O.
 - Backfilled `risk_score` values on historical rows are in-sample for the training portion.
 - No authorised overdrafts — `CHECK (balance >= 0)` means current accounts can't go negative.
 - No sessions or tokens; `login()` verifies a bcrypt hash and the API is unauthenticated.
-- `currency` column exists but there's no FX conversion.
+- `currency` column exists but there is no FX conversion.
 - Daily limits use server date, no timezones.
 - ~13k rows, so index effects are directional rather than conclusive.
 - No connection pooling.
